@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: space-intel-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python integrated_backend.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: GOOGLE_CSE_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: HUNTER_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: OPENPAGERANK_API_KEY
+        sync: false
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: SCRAPERAPI_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
