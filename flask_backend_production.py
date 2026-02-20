@@ -1,0 +1,469 @@
+"""
+PRODUCTION FLASK BACKEND
+With Authentication, Stripe Payments, and Usage Tracking
+
+Setup:
+1. pip install flask flask-cors stripe python-dotenv
+2. Add to .env:
+   STRIPE_SECRET_KEY=sk_test_your_key
+   STRIPE_PUBLISHABLE_KEY=pk_test_your_key
+3. Run: python flask_backend_production.py
+"""
+
+from flask import Flask, request, jsonify, session
+from flask_cors import CORS
+import subprocess
+import json
+import os
+import stripe
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+CORS(app, supports_credentials=True)
+
+# Stripe configuration
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY', '')
+
+# User database (in production, use PostgreSQL/MongoDB)
+USERS_DB = {}
+USAGE_DB = {}
+
+# Tier limits
+TIER_LIMITS = {
+    'free': {'searches_per_month': 1, 'max_results': 10},
+    'pro': {'searches_per_month': 10, 'max_results': 50},
+    'business': {'searches_per_month': 50, 'max_results': 100},
+    'enterprise': {'searches_per_month': 999999, 'max_results': 999999}
+}
+
+# Stripe price IDs (create these in Stripe dashboard)
+STRIPE_PRICES = {
+    'pro': os.getenv('STRIPE_PRICE_PRO', 'price_xxx'),
+    'business': os.getenv('STRIPE_PRICE_BUSINESS', 'price_xxx'),
+    'enterprise': os.getenv('STRIPE_PRICE_ENTERPRISE', 'price_xxx')
+}
+
+
+# ==========================================
+# AUTHENTICATION
+# ==========================================
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """Register new user"""
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
+    
+    if email in USERS_DB:
+        return jsonify({'error': 'User already exists'}), 400
+    
+    # In production: hash password with bcrypt
+    USERS_DB[email] = {
+        'email': email,
+        'password': password,  # Should be hashed!
+        'tier': 'free',
+        'created_at': datetime.now().isoformat(),
+        'stripe_customer_id': None
+    }
+    
+    USAGE_DB[email] = {
+        'searches_used': 0,
+        'last_reset': datetime.now().isoformat()
+    }
+    
+    return jsonify({
+        'message': 'Registration successful',
+        'user': {
+            'email': email,
+            'tier': 'free'
+        }
+    })
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Login user"""
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
+    
+    # Demo user for testing
+    if email == 'admin@test.com' and password == 'password':
+        user = {
+            'email': email,
+            'tier': 'free',
+            'created_at': datetime.now().isoformat()
+        }
+        USERS_DB[email] = user
+        USAGE_DB[email] = {'searches_used': 0, 'last_reset': datetime.now().isoformat()}
+    
+    user = USERS_DB.get(email)
+    if not user:
+        return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # Verify password (should be hashed in production)
+    if user.get('password') != password:
+        return jsonify({'error': 'Invalid credentials'}), 401
+    
+    session['user_email'] = email
+    
+    return jsonify({
+        'message': 'Login successful',
+        'token': 'demo-token-' + email,  # In production, use JWT
+        'user': {
+            'email': email,
+            'tier': user['tier'],
+            'searches_used': USAGE_DB[email]['searches_used'],
+            'searches_limit': TIER_LIMITS[user['tier']]['searches_per_month']
+        }
+    })
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout user"""
+    session.pop('user_email', None)
+    return jsonify({'message': 'Logged out'})
+
+
+# ==========================================
+# USAGE TRACKING
+# ==========================================
+
+def check_usage_limits(email):
+    """Check if user has reached their limit"""
+    user = USERS_DB.get(email)
+    if not user:
+        return False, "User not found"
+    
+    usage = USAGE_DB.get(email, {'searches_used': 0})
+    tier = user['tier']
+    limit = TIER_LIMITS[tier]['searches_per_month']
+    
+    # Reset monthly usage if needed
+    last_reset = datetime.fromisoformat(usage['last_reset'])
+    if datetime.now() - last_reset > timedelta(days=30):
+        usage['searches_used'] = 0
+        usage['last_reset'] = datetime.now().isoformat()
+    
+    if usage['searches_used'] >= limit:
+        return False, "Search limit reached"
+    
+    return True, None
+
+
+def increment_usage(email):
+    """Increment user's search count"""
+    if email not in USAGE_DB:
+        USAGE_DB[email] = {
+            'searches_used': 0,
+            'last_reset': datetime.now().isoformat()
+        }
+    
+    USAGE_DB[email]['searches_used'] += 1
+
+
+# ==========================================
+# SEARCH API
+# ==========================================
+
+@app.route('/api/search', methods=['POST'])
+def search():
+    """
+    Search endpoint with authentication and usage limits
+    """
+    # Check authentication - support both session and header-based auth
+    email = session.get('user_email')
+    
+    # If no session, check headers (for file:// origin dashboards)
+    if not email:
+        email = request.headers.get('X-User-Email')
+        data = request.get_json()
+        if not email and data:
+            email = data.get('user_email')
+    
+    if not email:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    # Create user if doesn't exist (for demo mode)
+    if email not in USERS_DB and email == 'admin@test.com':
+        USERS_DB[email] = {
+            'email': email,
+            'password': 'password',
+            'tier': 'free',
+            'created_at': datetime.now().isoformat()
+        }
+        USAGE_DB[email] = {
+            'searches_used': 0,
+            'last_reset': datetime.now().isoformat()
+        }
+    
+    # Check usage limits
+    allowed, error = check_usage_limits(email)
+    if not allowed:
+        return jsonify({'error': error, 'limit_reached': True}), 403
+    
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        max_results = data.get('max_results', 20)
+        
+        if not query:
+            return jsonify({'error': 'Query is required'}), 400
+        
+        # Check tier limits
+        user = USERS_DB[email]
+        tier_max = TIER_LIMITS[user['tier']]['max_results']
+        if max_results > tier_max:
+            return jsonify({
+                'error': f'Your {user["tier"]} tier allows max {tier_max} results',
+                'tier_limit': True
+            }), 403
+        
+        print(f"🔍 Search: '{query}' (user: {email}, tier: {user['tier']})")
+        
+        # Run profiler
+        profiler_script = 'final_competitor_profiler_COMPLETE.py'
+        if not os.path.exists(profiler_script):
+            profiler_script = 'final_competitor_profiler_ENHANCED.py'
+        
+        if not os.path.exists(profiler_script):
+            return jsonify({
+                'error': 'Profiler not found',
+                'details': 'Run auto_patcher_v2_complete.py first'
+            }), 500
+        
+        # Execute profiler
+        # Note: In production, use a task queue like Celery
+        cmd = ['python', profiler_script]
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Send inputs
+        inputs = f"{query}\n{max_results}\n"
+        stdout, stderr = process.communicate(input=inputs, timeout=300)
+        
+        if process.returncode != 0:
+            print(f"❌ Profiler error: {stderr[:500]}")
+            return jsonify({
+                'error': 'Profiler execution failed',
+                'details': stderr[:500]
+            }), 500
+        
+        # Load results
+        if os.path.exists('competitive_intelligence.json'):
+            with open('competitive_intelligence.json', 'r', encoding='utf-8') as f:
+                results = json.load(f)
+            
+            # Increment usage
+            increment_usage(email)
+            
+            print(f"✅ Success! Found {len(results.get('competitors', []))} competitors")
+            
+            return jsonify({
+                **results,
+                'usage': {
+                    'searches_used': USAGE_DB[email]['searches_used'],
+                    'searches_limit': TIER_LIMITS[user['tier']]['searches_per_month']
+                }
+            })
+        else:
+            return jsonify({
+                'error': 'Results file not found'
+            }), 500
+    
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'error': 'Search timed out (5 min limit)'
+        }), 408
+    
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return jsonify({
+            'error': 'Internal server error',
+            'details': str(e)
+        }), 500
+
+
+# ==========================================
+# STRIPE PAYMENTS
+# ==========================================
+
+@app.route('/api/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Create Stripe checkout session"""
+    email = session.get('user_email')
+    if not email:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    data = request.get_json()
+    tier = data.get('tier')  # 'pro', 'business', or 'enterprise'
+    
+    if tier not in STRIPE_PRICES:
+        return jsonify({'error': 'Invalid tier'}), 400
+    
+    try:
+        # Create Stripe customer if doesn't exist
+        user = USERS_DB[email]
+        if not user.get('stripe_customer_id'):
+            customer = stripe.Customer.create(
+                email=email,
+                metadata={'tier': tier}
+            )
+            user['stripe_customer_id'] = customer.id
+        
+        # Create checkout session
+        session = stripe.checkout.Session.create(
+            customer=user['stripe_customer_id'],
+            payment_method_types=['card'],
+            line_items=[{
+                'price': STRIPE_PRICES[tier],
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url='http://localhost:5000/success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url='http://localhost:5000/cancel',
+        )
+        
+        return jsonify({
+            'checkout_url': session.url,
+            'session_id': session.id
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/webhook/stripe', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
+    
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, webhook_secret
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    
+    # Handle successful subscription
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        customer_id = session['customer']
+        
+        # Find user by customer ID
+        for email, user in USERS_DB.items():
+            if user.get('stripe_customer_id') == customer_id:
+                # Upgrade user tier based on subscription
+                # (In production, query Stripe for the exact product)
+                metadata = session.get('metadata', {})
+                tier = metadata.get('tier', 'pro')
+                user['tier'] = tier
+                
+                # Reset usage
+                USAGE_DB[email] = {
+                    'searches_used': 0,
+                    'last_reset': datetime.now().isoformat()
+                }
+                
+                print(f"✅ Upgraded {email} to {tier}")
+                break
+    
+    return jsonify({'status': 'success'})
+
+
+# ==========================================
+# STATUS & HEALTH
+# ==========================================
+
+@app.route('/api/status', methods=['GET'])
+def status():
+    """Health check"""
+    return jsonify({
+        'status': 'online',
+        'profiler': 'ready',
+        'stripe_configured': bool(stripe.api_key),
+        'users_count': len(USERS_DB)
+    })
+
+
+@app.route('/api/user/info', methods=['GET'])
+def user_info():
+    """Get current user info"""
+    email = session.get('user_email')
+    if not email:
+        return jsonify({'error': 'Not authenticated'}), 401
+    
+    user = USERS_DB.get(email)
+    usage = USAGE_DB.get(email, {'searches_used': 0})
+    
+    return jsonify({
+        'email': email,
+        'tier': user['tier'],
+        'searches_used': usage['searches_used'],
+        'searches_limit': TIER_LIMITS[user['tier']]['searches_per_month']
+    })
+
+
+# ==========================================
+# MAIN
+# ==========================================
+
+if __name__ == '__main__':
+    print("=" * 70)
+    print("🚀 PRODUCTION FLASK BACKEND")
+    print("=" * 70)
+    print()
+    print("Features:")
+    print("  ✅ User authentication")
+    print("  ✅ Usage limits & tracking")
+    print("  ✅ Stripe payment integration")
+    print("  ✅ Multi-tier subscriptions")
+    print()
+    print("Endpoints:")
+    print("  POST /api/auth/register")
+    print("  POST /api/auth/login")
+    print("  POST /api/search")
+    print("  POST /api/create-checkout-session")
+    print("  POST /api/webhook/stripe")
+    print()
+    print("Demo Login:")
+    print("  Email: admin@test.com")
+    print("  Password: password")
+    print()
+    print("=" * 70)
+    print()
+    
+    # Install dependencies if needed
+    try:
+        import stripe
+    except ImportError:
+        print("⚠️  Installing Stripe...")
+        subprocess.run(['pip', 'install', 'stripe'], check=True)
+    
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        print("⚠️  Installing python-dotenv...")
+        subprocess.run(['pip', 'install', 'python-dotenv'], check=True)
+    
+    app.run(debug=True, port=5000)

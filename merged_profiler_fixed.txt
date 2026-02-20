@@ -1,0 +1,132 @@
+import csv
+import os
+import re
+import time
+import requests
+from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+from duckduckgo_search import DDGS
+from googleplaces import GooglePlaces
+import tldextract
+
+# ----- CONFIGURATION -----
+GOOGLE_API_KEY = "AIzaSyAsX5EHoJ4Vfis4z20zWxNB4r7yq4Kihfc"
+GOOGLE_PLACES = GooglePlaces(GOOGLE_API_KEY)
+DDG_MAX_RESULTS = 20
+
+# ----- UTILITIES -----
+def clean_url(url):
+    try:
+        return url.split("?")[0].split("#")[0].strip()
+    except:
+        return url
+
+def extract_domain(url):
+    try:
+        extracted = tldextract.extract(url)
+        return f"{extracted.domain}.{extracted.suffix}"
+    except:
+        return url
+
+def fetch_title(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        return soup.title.string.strip() if soup.title else "(No Title)"
+    except:
+        return "(Error fetching title)"
+
+def filter_results(results, input_domain):
+    filtered = []
+    seen_domains = set()
+    for r in results:
+        domain = extract_domain(r['href'])
+        if domain == input_domain:
+            continue
+        if domain in seen_domains:
+            continue
+        if any(gov in domain for gov in [".gov", "cityof"]):
+            if len(filtered) > 0:
+                continue  # Skip gov domains unless no other result
+        seen_domains.add(domain)
+        filtered.append(r)
+    return filtered
+
+def enrich_google_places(domain):
+    try:
+        query = domain.replace("www.", "")
+        places = GOOGLE_PLACES.text_search(query)
+        if places.places:
+            place = places.places[0]
+            place.get_details()
+            return {
+                "GoogleReviews": place.details.get("user_ratings_total", "N/A"),
+                "GoogleStars": place.details.get("rating", "N/A"),
+                "GooglePhotos": len(place.photos) if place.photos else 0
+            }
+    except Exception as e:
+        return {"GoogleReviews": "N/A", "GoogleStars": "N/A", "GooglePhotos": "N/A"}
+    return {"GoogleReviews": "N/A", "GoogleStars": "N/A", "GooglePhotos": "N/A"}
+
+def enrich_yelp(domain):
+    return {"YelpReviews": "N/A", "YelpStars": "N/A", "YelpPhotos": "N/A"}
+
+def enrich_avvo(domain):
+    return {"AvvoRating": "N/A", "AvvoReviews": "N/A"}
+
+# ----- MAIN WORKFLOW -----
+def search_duckduckgo(query):
+    print(f"🔍 Searching DuckDuckGo for: {query}")
+    results = []
+    with DDGS() as ddgs:
+        for r in ddgs.text(query, max_results=DDG_MAX_RESULTS):
+            if 'href' in r:
+                results.append({"href": clean_url(r['href'])})
+    return results
+
+def main():
+    query = input("Enter the competitor name or domain: ").strip()
+    if query.startswith("http"):
+        parsed = urlparse(query)
+        input_domain = extract_domain(parsed.netloc)
+    else:
+        input_domain = extract_domain(query)
+
+    ddg_results = search_duckduckgo(query)
+    filtered = filter_results(ddg_results, input_domain)
+
+    rows = []
+    for r in filtered:
+        url = r["href"]
+        domain = extract_domain(url)
+        title = fetch_title(url)
+
+        print(f"▶️ {domain}")
+
+        google_data = enrich_google_places(domain)
+        yelp_data = enrich_yelp(domain)
+        avvo_data = enrich_avvo(domain)
+
+        rows.append({
+            "Title": title,
+            "URL": url,
+            "Domain": domain,
+            "EstimatedTraffic": "TBD",
+            **avvo_data,
+            **yelp_data,
+            **google_data
+        })
+
+    out_path = "competitors.csv"
+    with open(out_path, "w", newline='', encoding='utf-8') as csvfile:
+        fieldnames = ["Title", "URL", "Domain", "EstimatedTraffic", "AvvoRating", "AvvoReviews", "YelpReviews", "YelpStars", "YelpPhotos", "GoogleReviews", "GoogleStars", "GooglePhotos"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+    print(f"✅ Saved {len(rows)} competitors to {out_path}")
+
+if __name__ == "__main__":
+    main()

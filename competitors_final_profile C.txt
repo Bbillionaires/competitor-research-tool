@@ -1,0 +1,182 @@
+import React, { useState, useEffect } from 'react';
+import { Download, AlertCircle } from 'lucide-react';
+
+const ManualCSVBuilder = () => {
+  const [csvContent, setCsvContent] = useState('');
+  const [rowCount, setRowCount] = useState(0);
+  const [status, setStatus] = useState('loading');
+
+  useEffect(() => {
+    buildCSV();
+  }, []);
+
+  const buildCSV = async () => {
+    try {
+      const fileData = await window.fs.readFile('competitors_final_profile.csv', { encoding: 'utf8' });
+      
+      // Split into lines
+      const lines = fileData.split('\n').filter(line => line.trim());
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      // Find the index of 'name' and 'address' columns
+      const nameIndex = headers.indexOf('name');
+      const addressIndex = headers.indexOf('address');
+      
+      if (nameIndex === -1 || addressIndex === -1) {
+        setStatus('error');
+        return;
+      }
+
+      // Build new CSV manually
+      let newCSV = 'name,address,';
+      
+      // Add all other headers (except name and address)
+      const otherHeaders = headers.filter((h, i) => i !== nameIndex && i !== addressIndex);
+      newCSV += otherHeaders.join(',') + '\n';
+      
+      let validRows = 0;
+      
+      // Process each data row
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        
+        // Simple CSV parsing (handling quoted fields)
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let char of line) {
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current.trim());
+        
+        const name = (values[nameIndex] || '').replace(/"/g, '').toLowerCase();
+        const domain = headers.indexOf('domain') !== -1 ? (values[headers.indexOf('domain')] || '').toLowerCase() : '';
+        
+        // Filter out reddit and news
+        if (name.includes('reddit') || name.includes('news') || domain.includes('reddit') || domain.includes('news') || !name.trim()) {
+          continue;
+        }
+        
+        // Build new row: name first, address second
+        let newRow = '';
+        
+        // Add name (escape commas and quotes)
+        let nameVal = (values[nameIndex] || '').replace(/"/g, '');
+        if (nameVal.includes(',')) nameVal = '"' + nameVal + '"';
+        newRow += nameVal + ',';
+        
+        // Add address (escape commas and quotes)
+        let addrVal = (values[addressIndex] || '').replace(/"/g, '');
+        if (addrVal.includes(',')) addrVal = '"' + addrVal + '"';
+        newRow += addrVal + ',';
+        
+        // Add all other values
+        const otherValues = values.filter((v, i) => i !== nameIndex && i !== addressIndex);
+        newRow += otherValues.map(v => {
+          let val = (v || '').replace(/"/g, '');
+          if (val.includes(',')) val = '"' + val + '"';
+          return val;
+        }).join(',');
+        
+        newCSV += newRow + '\n';
+        validRows++;
+      }
+      
+      setCsvContent(newCSV);
+      setRowCount(validRows);
+      setStatus('ready');
+      
+    } catch (err) {
+      console.error('Error:', err);
+      setStatus('error');
+    }
+  };
+
+  const downloadCSV = () => {
+    if (!csvContent) return;
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.download = 'competitors_fixed.csv';
+    link.click();
+    
+    URL.revokeObjectURL(url);
+  };
+
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Building your CSV...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-8 max-w-md">
+          <AlertCircle className="text-red-500 mx-auto mb-4" size={48} />
+          <h2 className="text-xl font-bold text-red-900 text-center mb-2">Error Processing File</h2>
+          <p className="text-red-700 text-center">Could not find 'name' or 'address' columns in your CSV</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-xl shadow-lg p-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Your CSV is Ready!</h1>
+          <p className="text-gray-600 mb-6">Manually built with proper column order</p>
+
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6 mb-6">
+            <h2 className="font-bold text-green-900 mb-3 text-lg">✓ CSV Structure Confirmed:</h2>
+            <div className="space-y-2 text-green-800">
+              <p>• <strong>Column A:</strong> name</p>
+              <p>• <strong>Column B:</strong> address</p>
+              <p>• <strong>Total rows:</strong> {rowCount} competitors</p>
+              <p>• <strong>Filtered out:</strong> Reddit, news sites</p>
+            </div>
+          </div>
+
+          <div className="bg-gray-100 rounded-lg p-4 mb-6 font-mono text-xs overflow-x-auto">
+            <div className="text-gray-500 mb-2">Preview (first line):</div>
+            <div className="text-gray-800 whitespace-nowrap">
+              {csvContent.split('\n').slice(0, 2).join('\n')}
+            </div>
+          </div>
+
+          <button
+            onClick={downloadCSV}
+            className="w-full bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors font-bold text-lg flex items-center justify-center gap-3 shadow-lg"
+          >
+            <Download size={24} />
+            Download CSV (competitors_fixed.csv)
+          </button>
+
+          <p className="text-center text-sm text-gray-500 mt-4">
+            Open in Excel/Google Sheets to verify Column A = name, Column B = address
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ManualCSVBuilder;

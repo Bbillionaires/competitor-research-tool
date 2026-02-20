@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Intel - Competitive Intelligence</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600;800&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Exo 2', sans-serif;
+            background: #050510;
+            color: #e0e7ff;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        /* Animated cosmic background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 200%; height: 200%;
+            background: radial-gradient(circle at 20% 50%, rgba(120, 40, 200, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 50%, rgba(40, 100, 200, 0.15) 0%, transparent 50%);
+            animation: cosmic 20s ease-in-out infinite;
+            z-index: 0;
+        }
+        
+        @keyframes cosmic {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-50px, -50px); }
+        }
+        
+        /* Starfield */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20% 30%, white, transparent),
+                radial-gradient(2px 2px at 60% 70%, white, transparent),
+                radial-gradient(1px 1px at 50% 50%, white, transparent),
+                radial-gradient(1px 1px at 80% 10%, white, transparent),
+                radial-gradient(2px 2px at 90% 60%, white, transparent);
+            background-size: 200px 200px;
+            animation: stars 60s linear infinite;
+            opacity: 0.4;
+            z-index: 0;
+        }
+        
+        @keyframes stars {
+            from { transform: translateY(0); }
+            to { transform: translateY(-200px); }
+        }
+        
+        .container {
+            max-width: 1900px;
+            margin: 0 auto;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        /* HEADER */
+        .header {
+            background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
+            border: 2px solid rgba(138, 92, 246, 0.3);
+            border-radius: 20px;
+            padding: 25px 40px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 40px rgba(138, 92, 246, 0.2);
+        }
+        
+        .logo {
+            font-family: 'Orbitron', monospace;
+            font-size: 36px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+        
+        .user-info {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .user-name {
+            font-weight: 600;
+            color: #c4b5fd;
+        }
+        
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .tab {
+            padding: 15px 35px;
+            background: rgba(30, 20, 60, 0.6);
+            border: 2px solid rgba(138, 92, 246, 0.3);
+            border-radius: 12px;
+            color: #94a3b8;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 14px;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 0 25px rgba(138, 92, 246, 0.5);
+        }
+        
+        .tab:hover:not(.active) {
+            border-color: #8b5cf6;
+            color: #c4b5fd;
+        }
+        
+        /* PANELS */
+        .panel {
+            display: none;
+        }
+        
+        .panel.active {
+            display: block;
+        }
+        
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
+            border: 2px solid rgba(138, 92, 246, 0.3);
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: #8b5cf6;
+            box-shadow: 0 0 30px rgba(138, 92, 246, 0.4);
+        }
+        
+        .stat-value {
+            font-size: 48px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        
+        /* CHARTS */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-card {
+            background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
+            border: 2px solid rgba(138, 92, 246, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(15px);
+        }
+        
+        .chart-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 18px;
+            text-align: center;
+            color: #c4b5fd;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        /* DATA TABLE */
+        .table-card {
+            background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
+            border: 2px solid rgba(138, 92, 246, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 40px rgba(138, 92, 246, 0.2);
+        }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        
+        .table-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .data-table th {
+            background: rgba(138, 92, 246, 0.2);
+            padding: 18px 15px;
+            text-align: left;
+            font-weight: 700;
+            color: #c4b5fd;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 12px;
+            border-bottom: 2px solid rgba(138, 92, 246, 0.3);
+        }
+        
+        .data-table td {
+            padding: 15px;
+            border-bottom: 1px solid rgba(138, 92, 246, 0.1);
+            color: #e0e7ff;
+        }
+        
+        .data-table tr:hover {
+            background: rgba(138, 92, 246, 0.1);
+        }
+        
+        .data-table a {
+            color: #8b5cf6;
+            text-decoration: none;
+        }
+        
+        .data-table a:hover {
+            color: #ec4899;
+            text-decoration: underline;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">⚡ SPACE INTEL</div>
+            <div class="user-info">
+                <span class="user-name">Demo User</span>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('dashboard')">📊 Dashboard</div>
+            <div class="tab" onclick="showTab('data')">📁 Full Data</div>
+        </div>
+        
+        <!-- DASHBOARD PANEL -->
+        <div id="dashboardPanel" class="panel active">
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value">67</div>
+                    <div class="stat-label">Competitive Score</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">15</div>
+                    <div class="stat-label">Total Competitors</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">Very Difficult</div>
+                    <div class="stat-label">Market Difficulty</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">Saturated</div>
+                    <div class="stat-label">Saturation Level</div>
+                </div>
+            </div>
+            
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-title">Traffic Distribution</div>
+                    <canvas id="trafficChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Tier Distribution</div>
+                    <canvas id="tierChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Social Presence</div>
+                    <canvas id="socialChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Top Competitors by Score</div>
+                    <canvas id="topChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- DATA PANEL -->
+        <div id="dataPanel" class="panel">
+            <div class="table-card">
+                <div class="table-header">
+                    <h2 class="table-title">Competitor Intelligence Data</h2>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Domain</th>
+                                <th>Address</th>
+                                <th>Phones</th>
+                                <th>Emails</th>
+                                <th>Traffic</th>
+                                <th>Score</th>
+                                <th>Tier</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // SAMPLE DATA - Replace with your real data
+        const sampleCompetitors = [
+            {
+                name: "Lima One Capital",
+                domain: "limaone.com",
+                address: "123 Main St, Jacksonville FL",
+                phones: "(800) 390-4212",
+                emails: "hello@limaone.com",
+                traffic_estimate: 12500,
+                competitor_score: 85,
+                tier: "Tier 1"
+            },
+            {
+                name: "Real Estate Bees",
+                domain: "realestatebees.com",
+                address: "456 Oak Ave, Jacksonville FL",
+                phones: "(904) 123-4567",
+                emails: "info@realestatebees.com",
+                traffic_estimate: 8900,
+                competitor_score: 78,
+                tier: "Tier 2"
+            },
+            {
+                name: "Franklin Street",
+                domain: "franklinst.com",
+                address: "789 Pine Rd, Jacksonville FL",
+                phones: "(813) 839-7300",
+                emails: "contact@franklinst.com",
+                traffic_estimate: 15200,
+                competitor_score: 92,
+                tier: "Tier 1"
+            },
+            {
+                name: "Foundry Commercial",
+                domain: "foundrycommercial.com",
+                address: "321 Beach Blvd, Jacksonville FL",
+                phones: "(904) 345-2020",
+                emails: "info@foundrycommercial.com",
+                traffic_estimate: 7800,
+                competitor_score: 72,
+                tier: "Tier 2"
+            },
+            {
+                name: "Marcus & Millichap",
+                domain: "marcusmillichap.com",
+                address: "555 Market St, Jacksonville FL",
+                phones: "(904) 672-1400",
+                emails: "info@marcusmillichap.com",
+                traffic_estimate: 25000,
+                competitor_score: 95,
+                tier: "Tier 1"
+            },
+            {
+                name: "Arena Investors",
+                domain: "arenaco.com",
+                address: "777 Capital Way, Jacksonville FL",
+                phones: "(212) 123-4567",
+                emails: "contact@arenaco.com",
+                traffic_estimate: 6500,
+                competitor_score: 68,
+                tier: "Tier 3"
+            },
+            {
+                name: "Florida Realty Investments",
+                domain: "flarealtyinvestments.com",
+                address: "888 Investment Dr, Jacksonville FL",
+                phones: "(407) 207-2220",
+                emails: "info@flarealtyinvestments.com",
+                traffic_estimate: 5200,
+                competitor_score: 65,
+                tier: "Tier 3"
+            },
+            {
+                name: "DLP Capital",
+                domain: "dlpcapital.com",
+                address: "999 Finance Plaza, Jacksonville FL",
+                phones: "(800) 350-8061",
+                emails: "info@dlpcapital.com",
+                traffic_estimate: 9800,
+                competitor_score: 82,
+                tier: "Tier 2"
+            }
+        ];
+        
+        // Initialize on load
+        window.onload = function() {
+            createCharts();
+            displayDataTable();
+        };
+        
+        // Create Charts
+        function createCharts() {
+            // Traffic Chart
+            new Chart(document.getElementById('trafficChart'), {
+                type: 'bar',
+                data: {
+                    labels: sampleCompetitors.slice(0, 8).map(c => c.name),
+                    datasets: [{
+                        label: 'Monthly Traffic',
+                        data: sampleCompetitors.slice(0, 8).map(c => c.traffic_estimate),
+                        backgroundColor: '#8b5cf6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e7ff', font: { family: 'Exo 2' } }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#e0e7ff' }, grid: { color: 'rgba(138, 92, 246, 0.1)' } },
+                        y: { ticks: { color: '#e0e7ff' }, grid: { color: 'rgba(138, 92, 246, 0.1)' } }
+                    }
+                }
+            });
+            
+            // Tier Chart
+            const tierCounts = {};
+            sampleCompetitors.forEach(c => {
+                tierCounts[c.tier] = (tierCounts[c.tier] || 0) + 1;
+            });
+            
+            new Chart(document.getElementById('tierChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(tierCounts),
+                    datasets: [{
+                        data: Object.values(tierCounts),
+                        backgroundColor: ['#8b5cf6', '#ec4899', '#f59e0b']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e7ff', font: { family: 'Exo 2' } }
+                        }
+                    }
+                }
+            });
+            
+            // Social Chart
+            new Chart(document.getElementById('socialChart'), {
+                type: 'pie',
+                data: {
+                    labels: ['Facebook', 'LinkedIn', 'Instagram', 'Twitter'],
+                    datasets: [{
+                        data: [12, 14, 8, 6],
+                        backgroundColor: ['#3b82f6', '#0ea5e9', '#ec4899', '#8b5cf6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e7ff', font: { family: 'Exo 2' } }
+                        }
+                    }
+                }
+            });
+            
+            // Top Competitors
+            const top5 = [...sampleCompetitors].sort((a, b) => b.competitor_score - a.competitor_score).slice(0, 5);
+            
+            new Chart(document.getElementById('topChart'), {
+                type: 'horizontalBar',
+                data: {
+                    labels: top5.map(c => c.name),
+                    datasets: [{
+                        label: 'Score',
+                        data: top5.map(c => c.competitor_score),
+                        backgroundColor: '#ec4899'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#e0e7ff', font: { family: 'Exo 2' } }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#e0e7ff' }, grid: { color: 'rgba(138, 92, 246, 0.1)' } },
+                        y: { ticks: { color: '#e0e7ff' }, grid: { color: 'rgba(138, 92, 246, 0.1)' } }
+                    }
+                }
+            });
+        }
+        
+        // Display Data Table
+        function displayDataTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = sampleCompetitors.map(c => `
+                <tr>
+                    <td>${c.name}</td>
+                    <td><a href="http://${c.domain}" target="_blank">${c.domain}</a></td>
+                    <td>${c.address}</td>
+                    <td>${c.phones}</td>
+                    <td>${c.emails}</td>
+                    <td>${c.traffic_estimate.toLocaleString()}</td>
+                    <td>${c.competitor_score}</td>
+                    <td>${c.tier}</td>
+                </tr>
+            `).join('');
+        }
+        
+        // Tab Switching
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(tabName + 'Panel').classList.add('active');
+        }
+    </script>
+</body>
+</html>
