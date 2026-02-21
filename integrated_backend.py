@@ -20,7 +20,18 @@ import secrets
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
-CORS(app, supports_credentials=True)
+
+# CORS configuration - allow local file access and credentials
+CORS(app, 
+     supports_credentials=True,
+     resources={r"/api/*": {
+         "origins": "*",  # Allow all origins including file://
+         "methods": ["GET", "POST", "OPTIONS"],
+         "allow_headers": ["Content-Type"],
+         "expose_headers": ["Content-Type"],
+         "supports_credentials": True
+     }}
+)
 
 # USER DATABASE
 USERS = {
