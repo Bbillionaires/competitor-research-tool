@@ -419,7 +419,7 @@
             </div>
             <button class="login-btn" onclick="login()">ACCESS SYSTEM</button>
             <div style="margin-top: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                Demo: demo@customer.com / demo123
+                Demo: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="096d6c6466496a7c7a7d66646c7b276a6664">[email&#160;protected]</a> / demo123
             </div>
         </div>
     </div>
@@ -484,7 +484,7 @@
         </div>
     </div>
     
-    <script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         let currentUser = null;
         let resultsData = null;
         
@@ -494,7 +494,7 @@
             const password = document.getElementById('loginPassword').value;
             
             try {
-                const response = await fetch('http://localhost:5000/api/auth/login', {
+                const response = await fetch('https://competitor-research-tool.onrender.com/api/auth/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'include',
@@ -518,7 +518,7 @@
         
         // LOGOUT
         function logout() {
-            fetch('http://localhost:5000/api/auth/logout', {
+            fetch('https://competitor-research-tool.onrender.com/api/auth/logout', {
                 method: 'POST',
                 credentials: 'include'
             });
@@ -553,7 +553,7 @@
             }, 1000);
             
             try {
-                const response = await fetch('http://localhost:5000/api/run-analysis', {
+                const response = await fetch('https://competitor-research-tool.onrender.com/api/run-analysis', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'include',
@@ -679,13 +679,4 @@
             });
             
             html += '</tbody>';
-            document.getElementById('dataTable').innerHTML = html;
-        }
-        
-        // EXPORT
-        function exportData(format) {
-            window.open(`http://localhost:5000/api/export/${format}`, '_blank');
-        }
-    </script>
-</body>
-</html>
+            document.getElementById
