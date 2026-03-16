@@ -20,7 +20,18 @@ import secrets
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
-CORS(app, supports_credentials=True, origins=["https://competitor-research-tool-1.onrender.com"])
+
+# Session configuration for cross-origin
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+CORS(app, 
+     supports_credentials=True, 
+     origins=["https://competitor-research-tool-1.onrender.com"],
+     allow_headers=["Content-Type"],
+     expose_headers=["Set-Cookie"],
+     methods=["GET", "POST", "OPTIONS"])
 
 # USER DATABASE
 USERS = {
@@ -42,9 +53,12 @@ USERS = {
 # AUTHENTICATION
 # ==========================================
 
-@app.route('/api/auth/login', methods=['POST'])
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
 def login():
     """User login"""
+    if request.method == 'OPTIONS':
+        return '', 204
+        
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -57,7 +71,7 @@ def login():
     session['email'] = email
     session['role'] = user['role']
     
-    return jsonify({
+    response = jsonify({
         "success": True,
         "user": {
             "email": email,
@@ -66,6 +80,8 @@ def login():
             "tier": user['tier']
         }
     })
+    
+    return response
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -77,9 +93,12 @@ def logout():
 # RUN ANALYSIS
 # ==========================================
 
-@app.route('/api/run-analysis', methods=['POST'])
+@app.route('/api/run-analysis', methods=['POST', 'OPTIONS'])
 def run_analysis():
     """Run the profiler and return results"""
+    
+    if request.method == 'OPTIONS':
+        return '', 204
     
     # Check authentication
     if 'email' not in session:
