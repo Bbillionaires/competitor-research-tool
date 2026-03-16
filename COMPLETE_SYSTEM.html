@@ -678,5 +678,13 @@
                 }).join('') + '</tr>';
             });
             
-            html += '</tbody>';
-            document.getElementById
+('dataTable').innerHTML = html;
+        }
+        
+        // EXPORT
+        function exportData(format) {
+            window.open(`https://competitor-research-tool.onrender.com/api/export/${format}`, '_blank');
+        }
+    </script>
+</body>
+</html>
