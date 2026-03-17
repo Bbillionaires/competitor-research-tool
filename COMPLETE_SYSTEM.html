@@ -18,7 +18,6 @@
             position: relative;
         }
         
-        /* Animated background */
         body::before {
             content: '';
             position: fixed;
@@ -61,7 +60,6 @@
             z-index: 1;
         }
         
-        /* LOGIN SCREEN */
         .login-screen {
             display: flex;
             align-items: center;
@@ -143,7 +141,6 @@
             transform: translateY(-3px);
         }
         
-        /* HEADER */
         .header {
             background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
             border: 2px solid rgba(138, 92, 246, 0.3);
@@ -180,7 +177,6 @@
             color: white;
         }
         
-        /* SEARCH PANEL */
         .search-panel {
             background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
             border: 2px solid rgba(138, 92, 246, 0.3);
@@ -249,7 +245,6 @@
             cursor: not-allowed;
         }
         
-        /* PROGRESS */
         .progress-bar {
             height: 8px;
             background: rgba(138, 92, 246, 0.2);
@@ -273,7 +268,6 @@
             font-family: 'Orbitron', monospace;
         }
         
-        /* STATS */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -310,7 +304,6 @@
             margin-top: 10px;
         }
         
-        /* CHARTS */
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
@@ -334,7 +327,6 @@
             text-transform: uppercase;
         }
         
-        /* TABLE */
         .table-card {
             background: linear-gradient(135deg, rgba(30, 20, 60, 0.8) 0%, rgba(20, 15, 40, 0.8) 100%);
             border: 2px solid rgba(138, 92, 246, 0.3);
@@ -383,29 +375,33 @@
         
         .data-table th {
             background: rgba(138, 92, 246, 0.2);
-            padding: 15px;
+            padding: 15px 10px;
             text-align: left;
             color: #c4b5fd;
             text-transform: uppercase;
-            font-size: 11px;
+            font-size: 10px;
+            white-space: nowrap;
         }
         
         .data-table td {
-            padding: 12px 15px;
+            padding: 12px 10px;
             border-bottom: 1px solid rgba(138, 92, 246, 0.1);
             color: #e0e7ff;
-            font-size: 13px;
+            font-size: 12px;
         }
         
         .data-table tr:hover {
             background: rgba(138, 92, 246, 0.1);
         }
         
+        .prospect-high { color: #10b981; font-weight: 700; }
+        .prospect-med { color: #f59e0b; font-weight: 600; }
+        .prospect-low { color: #6b7280; }
+        
         .hidden { display: none; }
     </style>
 </head>
 <body>
-    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="login-screen">
         <div class="login-box">
             <div class="login-logo">⚡ SPACE INTEL</div>
@@ -419,14 +415,12 @@
             </div>
             <button class="login-btn" onclick="login()">ACCESS SYSTEM</button>
             <div style="margin-top: 20px; text-align: center; color: #64748b; font-size: 12px;">
-                Demo: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="096d6c6466496a7c7a7d66646c7b276a6664">[email&#160;protected]</a> / demo123
+                Demo: demo@customer.com / demo123
             </div>
         </div>
     </div>
     
-    <!-- MAIN APP -->
     <div id="mainApp" class="container hidden">
-        <!-- Header -->
         <div class="header">
             <div class="logo">⚡ SPACE INTEL</div>
             <div>
@@ -435,7 +429,6 @@
             </div>
         </div>
         
-        <!-- Search Panel -->
         <div class="search-panel">
             <div class="search-title">🎯 COMPETITIVE INTELLIGENCE SEARCH</div>
             <div class="search-grid">
@@ -464,14 +457,13 @@
             <div class="progress-text" id="progressText"></div>
         </div>
         
-        <!-- Results -->
         <div id="results" class="hidden">
             <div class="stats-grid" id="statsGrid"></div>
             <div class="charts-grid" id="chartsGrid"></div>
             
             <div class="table-card">
                 <div class="table-header">
-                    <h2 class="table-title">Competitor Data</h2>
+                    <h2 class="table-title">💰 Prospect Intelligence</h2>
                     <div class="export-btns">
                         <button class="export-btn" onclick="exportData('csv')">📄 CSV</button>
                         <button class="export-btn" onclick="exportData('excel')">📊 Excel</button>
@@ -484,11 +476,10 @@
         </div>
     </div>
     
-    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+    <script>
         let currentUser = null;
         let resultsData = null;
         
-        // LOGIN
         async function login() {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
@@ -512,11 +503,10 @@
                     alert('Login failed: ' + data.error);
                 }
             } catch (error) {
-                alert('⚠️ Connection error!\n\nMake sure Flask backend is running:\npython integrated_backend.py');
+                alert('⚠️ Connection error!');
             }
         }
         
-        // LOGOUT
         function logout() {
             fetch('https://competitor-research-tool.onrender.com/api/auth/logout', {
                 method: 'POST',
@@ -525,7 +515,6 @@
             location.reload();
         }
         
-        // RUN ANALYSIS
         async function runAnalysis() {
             const industry = document.getElementById('industry').value;
             const location = document.getElementById('location').value;
@@ -536,14 +525,12 @@
                 return;
             }
             
-            // Show progress
             document.getElementById('searchBtn').disabled = true;
             document.getElementById('searchBtn').textContent = '⚡ ANALYZING...';
             document.getElementById('progressBar').style.display = 'block';
-            document.getElementById('progressText').textContent = 'Running competitive intelligence analysis...';
+            document.getElementById('progressText').textContent = 'Running AI prospect analysis...';
             document.getElementById('results').classList.add('hidden');
             
-            // Animate progress
             let progress = 0;
             const interval = setInterval(() => {
                 progress += 2;
@@ -589,12 +576,10 @@
             }
         }
         
-        // DISPLAY RESULTS
         function displayResults(data) {
             const stats = data.stats;
             const competitors = data.competitors;
             
-            // Stats
             document.getElementById('statsGrid').innerHTML = `
                 <div class="stat-card">
                     <div class="stat-value">${stats.total}</div>
@@ -614,16 +599,12 @@
                 </div>
             `;
             
-            // Charts
             createCharts(competitors);
-            
-            // Table
             displayTable(competitors);
             
             document.getElementById('results').classList.remove('hidden');
         }
         
-        // CHARTS
         function createCharts(competitors) {
             document.getElementById('chartsGrid').innerHTML = `
                 <div class="chart-card"><div class="chart-title">Traffic Distribution</div><canvas id="chart1"></canvas></div>
@@ -664,24 +645,41 @@
             });
         }
         
-        // TABLE
         function displayTable(competitors) {
-            const columns = ['name', 'domain', 'address', 'phones', 'emails', 'traffic_estimate', 'competitor_score', 'tier'];
+            const columns = [
+                'name', 'domain', 'phones', 'emails',
+                'prospect_likelihood_score',
+                'trigger_summary',
+                'score_momentum',
+                'traffic_estimate',
+                'competitor_score',
+                'tier'
+            ];
             
             let html = '<thead><tr>' + columns.map(c => `<th>${c.toUpperCase().replace(/_/g, ' ')}</th>`).join('') + '</tr></thead><tbody>';
             
             competitors.slice(0, 50).forEach(row => {
                 html += '<tr>' + columns.map(col => {
                     let val = row[col] || '';
-                    if (typeof val === 'string' && val.length > 80) val = val.substring(0, 80) + '...';
+                    
+                    // Format prospect score with color
+                    if (col === 'prospect_likelihood_score') {
+                        const score = parseFloat(val) || 0;
+                        const cls = score >= 7 ? 'prospect-high' : score >= 5 ? 'prospect-med' : 'prospect-low';
+                        return `<td><span class="${cls}">${score}/10</span></td>`;
+                    }
+                    
+                    if (typeof val === 'string' && val.length > 60) {
+                        val = val.substring(0, 60) + '...';
+                    }
                     return `<td>${val}</td>`;
                 }).join('') + '</tr>';
             });
             
-('dataTable').innerHTML = html;
+            html += '</tbody>';
+            document.getElementById('dataTable').innerHTML = html;
         }
         
-        // EXPORT
         function exportData(format) {
             window.open(`https://competitor-research-tool.onrender.com/api/export/${format}`, '_blank');
         }
