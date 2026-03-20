@@ -1273,7 +1273,263 @@ def estimate_traffic(row: dict) -> int:
 # AI PROSPECT SCORER - Sales Intelligence System
 # ====================================================================================
 
-def fetch_recent_news_quick(company_name: str, domain: str):
+
+
+
+def analyze_prospect_and_client_intelligence(row: dict) -> dict:
+    """
+    UNIFIED INTELLIGENCE SYSTEM
+    Combines prospect readiness + ideal client identification with granular details
+    Returns WHO they sell to + WHY prospects would buy NOW + SPECIFIC signals
+    """
+    
+    # Fetch recent news for trigger signals
+    news = []
+    if GOOGLE_CSE_API_KEY and GOOGLE_CSE_ID:
+        try:
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                'key': GOOGLE_CSE_API_KEY,
+                'cx': GOOGLE_CSE_ID,
+                'q': f'"{row.get("name", "")}"',
+                'num': 3,
+                'dateRestrict': 'd30'
+            }
+            response = requests.get(url, params=params, timeout=8)
+            if response.status_code == 200:
+                news = [{'title': i.get('title', ''), 'snippet': i.get('snippet', '')} 
+                       for i in response.json().get('items', [])]
+        except:
+            pass
+    
+    # Combine all text for analysis
+    business_name = (row.get('name') or '').lower()
+    domain = (row.get('domain') or '').lower()
+    title = (row.get('title') or '').lower()
+    meta = (row.get('meta_description') or '').lower()
+    all_text = f"{business_name} {domain} {title} {meta}"
+    news_text = ' '.join([f"{n['title']} {n['snippet']}" for n in news]).lower()
+    
+    # === DETECT TRIGGER EVENTS (with specific details) ===
+    triggers = {
+        'count': 0,
+        'summary': '',
+        'funding_details': '',
+        'expansion_details': '',
+        'hiring_details': '',
+        'partnership_details': '',
+        'product_details': '',
+    }
+    
+    # Funding triggers
+    if 'raised' in news_text or 'funding' in news_text or 'investment' in news_text:
+        triggers['count'] += 1
+        # Extract details
+        if 'series' in news_text:
+            triggers['funding_details'] = 'Raised funding (Series round detected)'
+        elif 'million' in news_text or '$' in news_text:
+            triggers['funding_details'] = 'Recent funding activity'
+        else:
+            triggers['funding_details'] = 'Investment activity'
+        triggers['summary'] += f"{triggers['funding_details']}. "
+    
+    # Expansion triggers
+    if any(k in news_text for k in ['expan', 'opening', 'new location', 'new office', 'new facility']):
+        triggers['count'] += 1
+        if 'location' in news_text or 'office' in news_text:
+            triggers['expansion_details'] = 'Opening new location/office'
+        else:
+            triggers['expansion_details'] = 'Business expansion underway'
+        triggers['summary'] += f"{triggers['expansion_details']}. "
+    
+    # Hiring triggers
+    if any(k in news_text for k in ['hiring', 'recruiting', 'job', 'position']):
+        triggers['count'] += 1
+        # Try to extract role details
+        if 'engineer' in news_text:
+            triggers['hiring_details'] = 'Hiring engineers'
+        elif 'sales' in news_text:
+            triggers['hiring_details'] = 'Hiring sales team'
+        elif 'manager' in news_text or 'director' in news_text:
+            triggers['hiring_details'] = 'Hiring management roles'
+        else:
+            triggers['hiring_details'] = 'Active hiring'
+        triggers['summary'] += f"{triggers['hiring_details']}. "
+    elif row.get('hiring_signal'):
+        triggers['count'] += 1
+        triggers['hiring_details'] = 'Job postings detected'
+        triggers['summary'] += f"{triggers['hiring_details']}. "
+    
+    # Partnership triggers
+    if any(k in news_text for k in ['partner', 'collaboration', 'alliance', 'agreement']):
+        triggers['count'] += 1
+        triggers['partnership_details'] = 'New partnership announced'
+        triggers['summary'] += f"{triggers['partnership_details']}. "
+    
+    # Product/service launch
+    if any(k in news_text for k in ['launch', 'release', 'unveil', 'new product', 'new service']):
+        triggers['count'] += 1
+        triggers['product_details'] = 'New product/service launch'
+        triggers['summary'] += f"{triggers['product_details']}. "
+    
+    # === IDENTIFY IDEAL CLIENT (specific, granular) ===
+    client_type = 'B2C'
+    client_profile = 'General Consumers'
+    top_prospect = 'Local residents'
+    prospect_examples = 'Individual consumers'
+    prospect_needs = 'General services'
+    
+    # DETAILED INDUSTRY MAPPING
+    if 'ingredient' in all_text or 'flavor' in all_text or 'syrup' in all_text:
+        client_type = 'B2B'
+        client_profile = 'Food & Beverage Manufacturers'
+        top_prospect = 'Coca-Cola, PepsiCo (syrup, flavorings, sweeteners)'
+        prospect_examples = 'Coca-Cola, Nestlé, Kraft Heinz, Mondelez'
+        prospect_needs = 'Raw ingredients, flavorings, packaging materials'
+    
+    elif 'packaging' in all_text or 'container' in all_text or 'label' in all_text:
+        client_type = 'B2B'
+        client_profile = 'CPG Companies'
+        top_prospect = 'P&G, Unilever (bottles, labels, packaging)'
+        prospect_examples = 'Procter & Gamble, Unilever, Coca-Cola'
+        prospect_needs = 'Packaging materials, labels, containers'
+    
+    elif 'title' in all_text and ('real estate' in all_text or 'property' in all_text):
+        client_type = 'B2B'
+        client_profile = 'Real Estate Investors & Lenders'
+        top_prospect = 'Blackstone, Invitation Homes (title insurance)'
+        prospect_examples = 'Blackstone, Invitation Homes, JPMorgan, local investors'
+        prospect_needs = 'Title insurance, escrow services, closing services'
+    
+    elif 'law' in all_text or 'attorney' in all_text or 'legal' in all_text:
+        if 'corporate' in all_text or 'business' in all_text or 'm&a' in all_text:
+            client_type = 'B2B'
+            client_profile = 'Fortune 500 Companies'
+            top_prospect = 'Amazon, Microsoft (corporate legal, M&A)'
+            prospect_examples = 'Amazon, Microsoft, JPMorgan, Apple'
+            prospect_needs = 'Corporate law, M&A, compliance, litigation'
+        elif 'personal injury' in all_text or 'accident' in all_text:
+            client_type = 'B2C'
+            client_profile = 'Accident Victims'
+            top_prospect = 'Car accident victims, workplace injuries'
+            prospect_examples = 'Auto accident victims, slip-and-fall cases'
+            prospect_needs = 'Personal injury representation, settlements'
+        elif 'immigration' in all_text:
+            client_type = 'B2C'
+            client_profile = 'Immigrants'
+            top_prospect = 'H1B visa applicants, green card seekers'
+            prospect_examples = 'Tech workers seeking visas, family reunification'
+            prospect_needs = 'Visa applications, green cards, citizenship'
+        else:
+            client_type = 'B2C'
+            client_profile = 'Individuals & Families'
+            top_prospect = 'Divorcing couples, estate planning clients'
+            prospect_examples = 'Family law cases, wills & trusts'
+            prospect_needs = 'Family law, estate planning, general counsel'
+    
+    elif 'hvac' in all_text or 'air condition' in all_text:
+        client_type = 'B2C'
+        client_profile = 'Homeowners'
+        top_prospect = 'FL homeowners (AC repair, replacement)'
+        prospect_examples = 'Residential homeowners, property managers'
+        prospect_needs = 'AC repair, HVAC installation, maintenance'
+    
+    elif 'roof' in all_text:
+        client_type = 'B2C'
+        client_profile = 'Homeowners'
+        top_prospect = 'Storm-damaged homes, aging roofs'
+        prospect_examples = 'FL homeowners (hurricane damage), HOAs'
+        prospect_needs = 'Roof replacement, storm damage repair'
+    
+    elif 'dental' in all_text or 'dentist' in all_text:
+        client_type = 'B2C'
+        client_profile = 'Local Families'
+        top_prospect = 'Families with children, seniors'
+        prospect_examples = 'Pediatric patients, cosmetic dentistry clients'
+        prospect_needs = 'Cleanings, fillings, orthodontics, cosmetic work'
+    
+    elif 'accounting' in all_text or 'bookkeeping' in all_text or 'cpa' in all_text:
+        client_type = 'B2B'
+        client_profile = 'Small-Medium Businesses'
+        top_prospect = 'Local businesses (tax prep, bookkeeping)'
+        prospect_examples = 'Restaurants, contractors, retail stores, startups'
+        prospect_needs = 'Tax preparation, bookkeeping, payroll, audits'
+    
+    elif 'marketing' in all_text or 'seo' in all_text or 'advertising' in all_text:
+        client_type = 'B2B'
+        client_profile = 'SMBs & Ecommerce'
+        top_prospect = 'Local restaurants, ecommerce stores (SEO, ads)'
+        prospect_examples = 'Restaurants, online stores, service businesses'
+        prospect_needs = 'SEO, Google Ads, social media marketing'
+    
+    elif 'software' in all_text or 'saas' in all_text:
+        client_type = 'B2B'
+        client_profile = 'Tech Companies'
+        top_prospect = 'SaaS startups, enterprise buyers'
+        prospect_examples = 'Salesforce, HubSpot, tech startups'
+        prospect_needs = 'Software solutions, integrations, APIs'
+    
+    elif 'manufactur' in all_text:
+        client_type = 'B2B'
+        client_profile = 'Industrial Manufacturers'
+        top_prospect = 'Tesla, Ford, GE (machinery, parts, services)'
+        prospect_examples = 'Tesla, Ford, GE, 3M, Boeing'
+        prospect_needs = 'Industrial equipment, parts, maintenance'
+    
+    # === CALCULATE PROSPECT SCORES ===
+    tier = row.get('tier', '')
+    traffic = int(row.get('traffic_estimate', 0) or 0)
+    da = int(row.get('domain_authority', 0) or 0)
+    social = int(row.get('social_platform_count', 0) or 0)
+    reviews = int(row.get('g_user_ratings_total', 0) or 0)
+    
+    scores = {
+        'visibility': min(10, 1 + (3 if traffic > 100000 else 2 if traffic > 50000 else 1)),
+        'resource': min(10, 1 + (4 if da > 70 else 3 if da > 50 else 2) + min(3, social)),
+        'momentum': min(10, 1 + (triggers['count'] * 2)),
+        'autonomy': 8 if tier == 'Tier 3' else 6 if tier == 'Tier 2' else 4,
+    }
+    
+    overall = round((scores['visibility'] * 0.2 + scores['resource'] * 0.2 + 
+                    scores['momentum'] * 0.3 + scores['autonomy'] * 0.3), 1)
+    
+    # === BUILD BUYING SIGNAL (specific, actionable) ===
+    buying_signal = triggers['summary'].strip()
+    if not buying_signal:
+        buying_signal = 'Monitor for trigger events'
+    
+    # Add context from client needs
+    if triggers['expansion_details']:
+        buying_signal += f" Likely needs: {prospect_needs}"
+    
+    return {
+        # Trigger Events (detailed)
+        'trigger_events_count': triggers['count'],
+        'trigger_summary': triggers['summary'].strip() or 'No recent activity',
+        'funding_details': triggers['funding_details'],
+        'expansion_details': triggers['expansion_details'],
+        'hiring_details': triggers['hiring_details'],
+        
+        # Prospect Scores
+        'score_momentum': scores['momentum'],
+        'score_resource_level': scores['resource'],
+        'prospect_likelihood_score': overall,
+        
+        # Ideal Client (SPECIFIC & GRANULAR)
+        'ideal_client_type': client_type,
+        'ideal_client_profile': client_profile,
+        'top_prospect': top_prospect,  # NEW - Most specific
+        'prospect_examples': prospect_examples,
+        'prospect_needs': prospect_needs,  # NEW - What they buy
+        
+        # Intelligence
+        'buying_signal': buying_signal,
+        'recent_news_count': len(news),
+    }
+
+
+
+def OLD_fetch_recent_news_quick(company_name: str, domain: str):
     """Fetch recent news about company"""
     if not GOOGLE_CSE_API_KEY or not GOOGLE_CSE_ID:
         return []
@@ -1295,7 +1551,7 @@ def fetch_recent_news_quick(company_name: str, domain: str):
     return []
 
 
-def score_prospect_complete(row: dict) -> dict:
+def OLD_score_prospect_complete(row: dict) -> dict:
     """Complete prospect scoring with trigger detection"""
     
     # Fetch recent news
@@ -1509,6 +1765,9 @@ def score_prospect_complete(row: dict) -> dict:
     try:
         prospect_data = score_prospect_complete(row)
         row.update(prospect_data)
+        # Ideal Client Analysis
+        client_data = analyze_ideal_client(row)
+        row.update(client_data)
         print(f"     💰 Prospect Score: {prospect_data.get('prospect_likelihood_score', 0)}/10")
     except Exception as e:
         print(f"     ⚠️  Prospect scoring skipped: {e}")
@@ -1578,6 +1837,219 @@ def score_prospect_complete(row: dict) -> dict:
 # 7. Add JWB debug logging
 # ==========================================
 
+
+
+def OLD_analyze_ideal_client(row: dict) -> dict:
+    """
+    Identifies SPECIFIC prospect companies/people who would buy from this competitor
+    Uses industry + news + LLM to find actual named prospects
+    """
+    
+    business_name = (row.get('name') or '').lower()
+    domain = (row.get('domain') or '').lower()
+    title = (row.get('title') or '').lower()
+    meta = (row.get('meta_description') or '').lower()
+    all_text = f"{business_name} {domain} {title} {meta}"
+    
+    # Determine client type first
+    client_type = 'B2C'
+    if any(k in all_text for k in ['b2b', 'enterprise', 'corporate', 'wholesale', 'business']):
+        client_type = 'B2B'
+    
+    # Industry-specific REAL prospect identification
+    specific_prospects = []
+    prospect_profile = 'General Market'
+    
+    # TITLE COMPANIES → Real Estate Investors
+    if 'title' in all_text and ('real estate' in all_text or 'insurance' in all_text):
+        client_type = 'B2B'
+        prospect_profile = 'Real Estate Investors & Lenders'
+        specific_prospects = [
+            'Blackstone (largest real estate investor)',
+            'Invitation Homes (single-family rentals)',
+            'Starwood Capital Group',
+            'Local real estate investors in ' + row.get('address', 'area').split(',')[-1].strip()
+        ]
+    
+    # LAW FIRMS → Specific client types
+    elif 'law' in all_text or 'attorney' in all_text:
+        if 'corporate' in all_text or 'business' in all_text:
+            client_type = 'B2B'
+            prospect_profile = 'Corporate Clients'
+            specific_prospects = [
+                'Amazon (needs constant legal counsel)',
+                'Microsoft (M&A, IP, compliance)',
+                'Local tech startups (incorporation, contracts)',
+                'Fortune 500 companies in region'
+            ]
+        elif 'personal injury' in all_text:
+            client_type = 'B2C'
+            prospect_profile = 'Accident Victims'
+            specific_prospects = [
+                'Recent car accident victims',
+                'Workers injured on job sites',
+                'Medical malpractice victims',
+                'Slip-and-fall cases from local businesses'
+            ]
+        elif 'family' in all_text:
+            client_type = 'B2C'
+            prospect_profile = 'Families in Transition'
+            specific_prospects = [
+                'Divorcing couples (especially high-net-worth)',
+                'Parents in custody disputes',
+                'Families dealing with estate issues',
+                'Couples seeking prenuptial agreements'
+            ]
+        else:
+            client_type = 'B2C'
+            prospect_profile = 'Legal Service Seekers'
+            specific_prospects = [
+                'Local residents with legal needs',
+                'Small business owners',
+                'Individuals facing legal issues'
+            ]
+    
+    # HVAC → Homeowners
+    elif 'hvac' in all_text or 'air condition' in all_text:
+        client_type = 'B2C'
+        prospect_profile = 'Homeowners & Property Managers'
+        location = row.get('address', 'Florida').split(',')[-1].strip()
+        specific_prospects = [
+            f'Homeowners in {location} (aging AC units)',
+            f'Property management companies in {location}',
+            'New construction buyers needing HVAC',
+            'HOAs managing multiple properties'
+        ]
+    
+    # ROOFING → Homeowners
+    elif 'roof' in all_text:
+        client_type = 'B2C'
+        prospect_profile = 'Property Owners'
+        location = row.get('address', 'Florida').split(',')[-1].strip()
+        specific_prospects = [
+            f'Storm-damaged homes in {location}',
+            f'Homes with roofs 15+ years old in {location}',
+            'Insurance claim homeowners',
+            'Commercial building owners'
+        ]
+    
+    # DENTAL → Local families
+    elif 'dental' in all_text or 'dentist' in all_text:
+        client_type = 'B2C'
+        prospect_profile = 'Local Families'
+        location = row.get('address', '').split(',')[0].strip() or 'area'
+        specific_prospects = [
+            f'Families with children in {location}',
+            f'New residents moving to {location}',
+            'Seniors needing dentures/implants',
+            'People with employer dental insurance'
+        ]
+    
+    # ACCOUNTING → SMBs
+    elif 'accounting' in all_text or 'cpa' in all_text or 'bookkeep' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Small Business Owners'
+        location = row.get('address', '').split(',')[-1].strip() or 'region'
+        specific_prospects = [
+            f'New LLCs/S-Corps registered in {location}',
+            'Restaurants & retail stores (cash-heavy businesses)',
+            'Contractors & construction companies',
+            'E-commerce sellers (sales tax complexity)'
+        ]
+    
+    # MARKETING AGENCY → SMBs
+    elif 'marketing' in all_text or 'advertis' in all_text or 'seo' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Growth-Focused Businesses'
+        specific_prospects = [
+            'Local restaurants needing online presence',
+            'E-commerce stores (Shopify/Amazon sellers)',
+            'Service businesses (plumbers, lawyers, dentists)',
+            'Startups launching new products'
+        ]
+    
+    # SOFTWARE/SAAS → Tech companies
+    elif 'software' in all_text or 'saas' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Tech Companies'
+        specific_prospects = [
+            'Salesforce (enterprise software buyer)',
+            'HubSpot (always buying tools)',
+            'Series A-C startups (budget + urgency)',
+            'Mid-market SaaS companies (10-500 employees)'
+        ]
+    
+    # MANUFACTURING SUPPLIER → Fortune 500
+    elif 'manufactur' in all_text or 'supply' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Manufacturers'
+        specific_prospects = [
+            'Tesla (rapidly scaling production)',
+            'Ford (electrification needs)',
+            'General Electric (diverse needs)',
+            'Boeing (aerospace manufacturing)'
+        ]
+    
+    # PACKAGING → CPG companies
+    elif 'packaging' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Consumer Goods Companies'
+        specific_prospects = [
+            'Coca-Cola (constant packaging needs)',
+            'PepsiCo (bottles, cans, boxes)',
+            'Procter & Gamble (diverse packaging)',
+            'Unilever (beauty & food packaging)'
+        ]
+    
+    # INGREDIENTS/FOOD SUPPLIER → Food manufacturers
+    elif 'ingredient' in all_text or 'food' in all_text and 'supplier' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'Food & Beverage Manufacturers'
+        specific_prospects = [
+            'Coca-Cola (syrup, flavorings, sweeteners)',
+            'Nestlé (diverse ingredient needs)',
+            'Kraft Heinz (sauces, condiments)',
+            'General Mills (cereal, baking ingredients)'
+        ]
+    
+    # LOGISTICS → Fortune 500
+    elif 'logistic' in all_text or 'supply chain' in all_text or 'freight' in all_text:
+        client_type = 'B2B'
+        prospect_profile = 'High-Volume Shippers'
+        specific_prospects = [
+            'Amazon (massive logistics needs)',
+            'Walmart (supply chain leader)',
+            'Target (expanding e-commerce)',
+            'Home Depot (construction materials)'
+        ]
+    
+    # DEFAULT FALLBACK
+    else:
+        if client_type == 'B2B':
+            specific_prospects = [
+                'Local businesses in growth phase',
+                'Companies with 10-500 employees',
+                'Startups that recently raised funding',
+                'Businesses expanding to new markets'
+            ]
+        else:
+            location = row.get('address', '').split(',')[-1].strip() or 'area'
+            specific_prospects = [
+                f'Local residents in {location}',
+                'Homeowners',
+                'Families',
+                'Individual consumers'
+            ]
+    
+    # Format examples as comma-separated string
+    examples_str = ', '.join(specific_prospects[:3]) if len(specific_prospects) > 3 else ', '.join(specific_prospects)
+    
+    return {
+        'ideal_client_type': client_type,
+        'ideal_client_profile': prospect_profile,
+        'ideal_client_examples': examples_str,
+        'ideal_client_top_prospect': specific_prospects[0] if specific_prospects else 'Unknown',
+    }
 def compute_score(row: dict) -> int:
     score = 0
 
