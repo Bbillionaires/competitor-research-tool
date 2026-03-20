@@ -1748,6 +1748,23 @@ def OLD_score_prospect_complete(row: dict) -> dict:
         'confidence_score',
         'tier',
         
+        # Prospect & Client Intelligence
+        'trigger_events_count',
+        'trigger_summary',
+        'funding_details',
+        'expansion_details',
+        'hiring_details',
+        'score_momentum',
+        'score_resource_level',
+        'prospect_likelihood_score',
+        'ideal_client_type',
+        'ideal_client_profile',
+        'top_prospect',
+        'prospect_examples',
+        'prospect_needs',
+        'buying_signal',
+        'recent_news_count',
+        
         # Metadata
         'source',
         'collected_at',
@@ -1761,16 +1778,13 @@ def OLD_score_prospect_complete(row: dict) -> dict:
     # Update traffic estimate with real calculation
     row["traffic_estimate"] = estimate_traffic(row)
 
-    # AI Prospect Scoring
+    # AI Prospect & Client Intelligence
     try:
-        prospect_data = score_prospect_complete(row)
-        row.update(prospect_data)
-        # Ideal Client Analysis
-        client_data = analyze_ideal_client(row)
-        row.update(client_data)
-        print(f"     💰 Prospect Score: {prospect_data.get('prospect_likelihood_score', 0)}/10")
+        intel = analyze_prospect_and_client_intelligence(row)
+        row.update(intel)
+        print(f"     💰 Prospect: {intel.get('prospect_likelihood_score', 0)}/10 | Client: {intel.get('top_prospect', 'N/A')[:40]}")
     except Exception as e:
-        print(f"     ⚠️  Prospect scoring skipped: {e}")
+        print(f"     ⚠️  Intelligence analysis skipped: {e}")
 
 
 # FIX 6: Better duplicate handling in main() (around line 810)
@@ -2243,6 +2257,13 @@ def process_competitor(url: str, query: str) -> Optional[dict]:
     citation_data = check_directory_citations(business_name, domain)
     row.update(citation_data)
     row["traffic_estimate"] = estimate_traffic(row)
+    
+    # AI Prospect & Client Intelligence
+    try:
+        intel = analyze_prospect_and_client_intelligence(row)
+        row.update(intel)
+    except Exception as e:
+        pass  # Silent fail for batch processing
     
     # 5. Hunter.io Email Enrichment
     if HUNTER_API_KEY:
