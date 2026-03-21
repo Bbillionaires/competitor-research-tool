@@ -93,9 +93,7 @@
             margin-bottom: 40px;
         }
         
-        .input-field {
-            margin-bottom: 25px;
-        }
+        .input-field { margin-bottom: 25px; }
         
         .input-field label {
             display: block;
@@ -322,6 +320,7 @@
         .table-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             margin-bottom: 25px;
         }
         
@@ -331,6 +330,12 @@
             background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+        
+        .table-info {
+            color: #8b5cf6;
+            font-size: 12px;
+            font-style: italic;
         }
         
         .export-btns { display: flex; gap: 15px; }
@@ -347,26 +352,79 @@
         
         .export-btn:hover { background: #8b5cf6; color: white; }
         
-        .data-table { width: 100%; border-collapse: collapse; }
+        /* SCROLLABLE TABLE CONTAINER - Like Excel */
+        .table-wrapper {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 600px;
+            border: 2px solid rgba(138, 92, 246, 0.2);
+            border-radius: 12px;
+            background: rgba(15, 10, 30, 0.4);
+        }
+        
+        .table-wrapper::-webkit-scrollbar {
+            height: 12px;
+            width: 12px;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-track {
+            background: rgba(138, 92, 246, 0.1);
+            border-radius: 10px;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+            border-radius: 10px;
+        }
+        
+        .table-wrapper::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #a78bfa 0%, #f472b6 100%);
+        }
+        
+        .data-table { 
+            width: 100%; 
+            border-collapse: collapse;
+            min-width: 2500px; /* Force horizontal scroll */
+        }
         
         .data-table th {
-            background: rgba(138, 92, 246, 0.2);
-            padding: 15px 8px;
+            background: rgba(138, 92, 246, 0.3);
+            padding: 15px 12px;
             text-align: left;
             color: #c4b5fd;
             text-transform: uppercase;
-            font-size: 9px;
+            font-size: 10px;
             white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .data-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 11;
+            background: rgba(138, 92, 246, 0.4);
         }
         
         .data-table td {
-            padding: 12px 8px;
+            padding: 12px;
             border-bottom: 1px solid rgba(138, 92, 246, 0.1);
             color: #e0e7ff;
             font-size: 11px;
+            white-space: nowrap;
         }
         
-        .data-table tr:hover { background: rgba(138, 92, 246, 0.1); }
+        .data-table td:first-child {
+            position: sticky;
+            left: 0;
+            background: linear-gradient(135deg, rgba(30, 20, 60, 0.95) 0%, rgba(20, 15, 40, 0.95) 100%);
+            font-weight: 600;
+            z-index: 9;
+        }
+        
+        .data-table tr:hover { background: rgba(138, 92, 246, 0.15); }
+        .data-table tr:hover td:first-child { background: rgba(138, 92, 246, 0.25); }
         
         .prospect-high { color: #10b981; font-weight: 700; }
         .prospect-med { color: #f59e0b; font-weight: 600; }
@@ -375,7 +433,7 @@
         .client-b2b { color: #8b5cf6; font-weight: 600; }
         .client-b2c { color: #ec4899; font-weight: 600; }
         
-        .top-prospect { color: #10b981; font-size: 12px; font-weight: 600; }
+        .top-prospect { color: #10b981; font-size: 11px; font-weight: 600; }
         
         .hidden { display: none; }
     </style>
@@ -442,13 +500,16 @@
             
             <div class="table-card">
                 <div class="table-header">
-                    <h2 class="table-title">💎 Granular Sales Intelligence</h2>
+                    <div>
+                        <h2 class="table-title">💎 Complete Intelligence View</h2>
+                        <p class="table-info">← Scroll right to see all data • Prospect intelligence visible only here (not in downloads)</p>
+                    </div>
                     <div class="export-btns">
                         <button class="export-btn" onclick="exportData('csv')">📄 CSV</button>
                         <button class="export-btn" onclick="exportData('excel')">📊 Excel</button>
                     </div>
                 </div>
-                <div style="overflow-x: auto;">
+                <div class="table-wrapper">
                     <table class="data-table" id="dataTable"></table>
                 </div>
             </div>
@@ -507,7 +568,7 @@
             document.getElementById('searchBtn').disabled = true;
             document.getElementById('searchBtn').textContent = '⚡ ANALYZING...';
             document.getElementById('progressBar').style.display = 'block';
-            document.getElementById('progressText').textContent = 'Running granular sales intelligence...';
+            document.getElementById('progressText').textContent = 'Running complete intelligence analysis...';
             document.getElementById('results').classList.add('hidden');
             
             let progress = 0;
@@ -625,19 +686,25 @@
         }
         
         function displayTable(competitors) {
-            // GRANULAR COLUMNS - Specific details
-            const columns = [
-                'name',
-                'prospect_likelihood_score',
-                'ideal_client_type',
-                'top_prospect',
-                'prospect_needs',
-                'trigger_summary',
-                'hiring_details',
-                'expansion_details',
-                'traffic_estimate',
-                'tier'
+            // ALL COLUMNS - Show everything like Excel spreadsheet
+            const allKeys = competitors.length > 0 ? Object.keys(competitors[0]) : [];
+            
+            // Prioritize important columns first, then show rest
+            const priorityOrder = [
+                'name', 'domain', 
+                'prospect_likelihood_score', 'ideal_client_type', 'top_prospect', 'prospect_needs',
+                'trigger_summary', 'hiring_details', 'expansion_details', 'funding_details',
+                'phones', 'emails', 'address',
+                'traffic_estimate', 'competitor_score', 'tier',
+                'g_rating', 'g_user_ratings_total', 
+                'domain_authority', 'social_platform_count'
             ];
+            
+            // Get remaining columns not in priority
+            const remainingCols = allKeys.filter(k => !priorityOrder.includes(k));
+            
+            // Combine: priority first, then rest
+            const columns = [...priorityOrder.filter(k => allKeys.includes(k)), ...remainingCols];
             
             let html = '<thead><tr>' + columns.map(c => `<th>${c.toUpperCase().replace(/_/g, ' ')}</th>`).join('') + '</tr></thead><tbody>';
             
@@ -663,9 +730,7 @@
                         return `<td><span class="top-prospect">${val || 'N/A'}</span></td>`;
                     }
                     
-                    if (typeof val === 'string' && val.length > 70) {
-                        val = val.substring(0, 70) + '...';
-                    }
+                    // Keep full text, let horizontal scroll handle it
                     return `<td>${val}</td>`;
                 }).join('') + '</tr>';
             });
